@@ -1,0 +1,29 @@
+name: "Dimi Task Assistant"
+version: "0.2.0"
+slug: "dimi_task_assistant"
+description: "Telegram Todoist task assistant powered by OpenAI – with daily briefings and inline task actions."
+url: "https://github.com/dimixyzc/telegram-task-bot"
+startup: application
+init: false
+map:
+  - data:rw
+arch:
+  - amd64
+options:
+  telegram_token: null
+  openai_api_key: null
+  openai_model: "gpt-5-mini"
+  todoist_api_token: null
+  telegram_chat_id: ""
+  morning_time: "07:30"
+  evening_time: "20:00"
+  timezone: "Europe/Berlin"
+schema:
+  telegram_token: str
+  openai_api_key: str
+  openai_model: str
+  todoist_api_token: str
+  telegram_chat_id: str?
+  morning_time: str?
+  evening_time: str?
+  timezone: str?

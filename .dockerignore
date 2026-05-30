@@ -1,7 +1,11 @@
 .env
-.venv/
-__pycache__/
+.venv
+__pycache__
 *.pyc
+.git
+.gitignore
+README.md
 .DS_Store
 dimi_task_assistant.zip
 install_bot*.txt
+Procfile

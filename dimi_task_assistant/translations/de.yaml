@@ -1,0 +1,25 @@
+configuration:
+  telegram_token:
+    name: Telegram-Token
+    description: Telegram-Bot-Token von BotFather
+  openai_api_key:
+    name: OpenAI-API-Key
+    description: OpenAI-API-Key fuer den Assistenten
+  openai_model:
+    name: OpenAI-Modell
+    description: Modellname, zum Beispiel gpt-5-mini
+  todoist_api_token:
+    name: Todoist-API-Token
+    description: Todoist-API-Token zum Lesen und Aktualisieren von Aufgaben
+  telegram_chat_id:
+    name: Telegram-Chat-ID
+    description: Optionale Chat-ID fuer taegliche Nachrichten. Leer lassen und /register nutzen.
+  morning_time:
+    name: Morgen-Briefing-Zeit
+    description: Taegliche Briefing-Zeit im Format HH:MM
+  evening_time:
+    name: Abend-Review-Zeit
+    description: Taegliche Review-Zeit im Format HH:MM
+  timezone:
+    name: Zeitzone
+    description: Zeitzone fuer geplante Nachrichten, zum Beispiel Europe/Berlin
