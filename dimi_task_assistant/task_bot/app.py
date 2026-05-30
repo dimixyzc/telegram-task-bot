@@ -33,7 +33,9 @@ def main() -> None:
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         level=logging.INFO,
     )
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
     settings = load_settings()
     app = build_application(settings)
     logging.getLogger(__name__).info("Bot gestartet.")
-    app.run_polling()
+    app.run_polling(bootstrap_retries=10)

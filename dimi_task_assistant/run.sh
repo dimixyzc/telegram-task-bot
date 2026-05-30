@@ -20,7 +20,7 @@ MORNING_TIME="$(bashio::config 'morning_time' '07:30')"
 EVENING_TIME="$(bashio::config 'evening_time' '20:00')"
 TIMEZONE="$(bashio::config 'timezone' 'Europe/Berlin')"
 
-bashio::log.info "Starting Dimi Task Assistant v0.2.0"
+bashio::log.info "Starting Dimi Task Assistant v0.2.1"
 bashio::log.info "Morning briefing at: ${MORNING_TIME} | Evening review at: ${EVENING_TIME} | TZ: ${TIMEZONE}"
 
 exec python3 -u /opt/dimi-task-assistant/bot.py
