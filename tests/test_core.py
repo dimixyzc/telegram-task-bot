@@ -118,6 +118,9 @@ class UtilityTests(unittest.TestCase):
             "<b>Hi</b>\nWeg",
         )
 
+    def test_sanitize_html_converts_visible_newline_escape(self) -> None:
+        self.assertEqual(sanitize_html("Hi!\\nWie kann ich helfen?"), "Hi!\nWie kann ich helfen?")
+
     def test_parse_hhmm(self) -> None:
         parsed = parse_hhmm("07:30", ZoneInfo("Europe/Berlin"))
         self.assertEqual(parsed.hour, 7)

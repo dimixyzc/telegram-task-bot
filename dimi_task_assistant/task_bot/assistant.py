@@ -161,7 +161,8 @@ SYSTEM_PROMPT = (
     "Falls mehrere Aufgaben passen, frage kurz nach dem genaueren Namen und liste kurze Optionen. "
     "Bestatige kurz, was du gemacht hast. "
     "Formatiere Antworten ausschliesslich mit Telegram-HTML: <b>, <i>, <code>. "
-    "Zeilenumbrueche mit \\n, niemals <br>. Kein Markdown, keine Sternchen."
+    "Nutze echte Zeilenumbrueche im Text, niemals sichtbare Zeichenfolgen wie \\n "
+    "und niemals <br>. Kein Markdown, keine Sternchen."
 )
 
 

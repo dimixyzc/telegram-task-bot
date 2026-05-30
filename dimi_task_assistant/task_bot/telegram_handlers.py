@@ -350,6 +350,7 @@ class BotRuntime:
 
 
 def sanitize_html(text: str) -> str:
+    text = text.replace("\\n", "\n")
     text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
 
     def strip_tag(match: re.Match) -> str:
