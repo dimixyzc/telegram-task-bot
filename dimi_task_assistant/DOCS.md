@@ -35,4 +35,4 @@ Telegram task assistant with OpenAI and Todoist for Home Assistant OS.
 
 - The add-on uses Telegram polling, so no port needs to be exposed.
 - The bot will keep running after Home Assistant restarts.
-- `/all`, `/today`, `/overdue`, `/focus`, `/week`, `/briefing`, `/review`, `/register`, and `/clear` are available in the add-on.
+- `/all`, `/today`, `/overdue`, `/focus`, `/week`, `/briefing`, `/review`, `/register`, `/ping`, and `/clear` are available in the add-on.

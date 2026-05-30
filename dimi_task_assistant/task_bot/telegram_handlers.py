@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import re
@@ -69,6 +70,7 @@ class BotRuntime:
             "/briefing - Morgen-Briefing manuell\n"
             "/review - Abend-Review manuell\n"
             "/register - Diese Chat-ID für tägliche Nachrichten eintragen\n"
+            "/ping - Verbindung testen\n"
             "/clear - Gesprächskontext zurücksetzen\n\n"
             "<b>Oder einfach schreiben:</b>\n"
             "<i>„Was steht heute an?“</i>\n"
@@ -76,6 +78,14 @@ class BotRuntime:
             "<i>„Verschieb Zahnarzt auf Freitag“</i>",
             parse_mode="HTML",
         )
+
+    async def cmd_ping(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        logger.info(
+            "Ping empfangen: chat_id=%s user_id=%s",
+            update.effective_chat.id if update.effective_chat else "",
+            update.effective_user.id if update.effective_user else "",
+        )
+        await update.message.reply_text("pong ✅")
 
     async def cmd_register(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -225,17 +235,31 @@ class BotRuntime:
     async def chat(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not update.message or not update.effective_user:
             return
-        if not self.active_chat_id:
-            self.active_chat_id = str(update.effective_chat.id)
-            self._save_chat_id(self.active_chat_id)
-            logger.info("Chat-ID auto-registriert: %s", self.active_chat_id)
+        try:
+            if not self.active_chat_id:
+                self.active_chat_id = str(update.effective_chat.id)
+                self._save_chat_id(self.active_chat_id)
+                logger.info("Chat-ID auto-registriert: %s", self.active_chat_id)
 
-        await self._send_typing(update, context)
-        user_text = update.message.text or ""
-        if len(user_text) > 2000:
-            user_text = user_text[:2000] + "\n[...Nachricht gekuerzt]"
-        reply = self.assistant.get_reply_text(user_text)
-        await safe_send(update.message, reply)
+            user_text = update.message.text or ""
+            logger.info(
+                "Nachricht empfangen: chat_id=%s user_id=%s length=%s",
+                update.effective_chat.id if update.effective_chat else "",
+                update.effective_user.id if update.effective_user else "",
+                len(user_text),
+            )
+            await self._send_typing(update, context)
+            if len(user_text) > 2000:
+                user_text = user_text[:2000] + "\n[...Nachricht gekuerzt]"
+            reply = await asyncio.to_thread(self.assistant.get_reply_text, user_text)
+            await safe_send(update.message, reply)
+        except Exception as exc:
+            logger.exception("Fehler beim Verarbeiten einer Chat-Nachricht")
+            await update.message.reply_text(
+                "❌ Ich habe die Nachricht empfangen, aber beim Verarbeiten ist ein Fehler aufgetreten.\n"
+                f"<code>{sanitize_html(str(exc))}</code>",
+                parse_mode="HTML",
+            )
 
     async def job_morning_briefing(self, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not self.active_chat_id:
@@ -276,6 +300,7 @@ class BotRuntime:
     def register_handlers(self, app: Application) -> None:
         app.add_handler(CommandHandler("start", self.cmd_start))
         app.add_handler(CommandHandler("register", self.cmd_register))
+        app.add_handler(CommandHandler("ping", self.cmd_ping))
         app.add_handler(CommandHandler("all", self.cmd_all))
         app.add_handler(CommandHandler("today", self.cmd_today))
         app.add_handler(CommandHandler("overdue", self.cmd_overdue))
@@ -286,6 +311,12 @@ class BotRuntime:
         app.add_handler(CommandHandler("clear", self.cmd_clear))
         app.add_handler(CallbackQueryHandler(self.handle_callback))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.chat))
+        app.add_error_handler(self.handle_error)
+
+    async def handle_error(
+        self, update: object, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        logger.exception("Telegram-Handler-Fehler", exc_info=context.error)
 
     def register_jobs(self, app: Application) -> None:
         if not app.job_queue:
