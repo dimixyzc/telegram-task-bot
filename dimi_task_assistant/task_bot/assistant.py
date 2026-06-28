@@ -87,6 +87,18 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "type": "function",
+        "name": "park_task",
+        "description": "Entfernt das Faelligkeitsdatum einer Todoist-Aufgabe, wenn sie nicht mehr in den Tagesplan gehoert.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "task_id": {"type": "string", "description": "Die Todoist-Task-ID."}
+            },
+            "required": ["task_id"],
+        },
+    },
+    {
+        "type": "function",
         "name": "reschedule_by_name",
         "description": "Sucht eine Aufgabe per Name/Stichwort und verschiebt sie.",
         "parameters": {
@@ -157,6 +169,8 @@ SYSTEM_PROMPT = (
     "Bei 'Welche sind am wichtigsten?' zeige die Top 3 bis 5 mit kurzem Grund. "
     "Wenn der Nutzer eine Aufgabe beim Namen nennt und verschieben will, nutze reschedule_by_name. "
     "Wenn der Nutzer eine Aufgabe beim Namen nennt und abhaken will, nutze complete_by_name. "
+    "Wenn der Nutzer eine Aufgabe parken will, liste erst Aufgaben und nutze park_task nur mit sicherer task_id. "
+    "Wenn der Nutzer eine grosse Aufgabe zerlegen will, schlage 3 bis 5 konkrete kleine Schritte vor. "
     "reschedule_task und complete_task nur nutzen, wenn du eine task_id aus list_tasks hast. "
     "Falls mehrere Aufgaben passen, frage kurz nach dem genaueren Namen und liste kurze Optionen. "
     "Bestatige kurz, was du gemacht hast. "
@@ -199,6 +213,8 @@ class TaskAssistant:
             payload = self.todoist.complete_task(parsed["task_id"])
         elif name == "reschedule_task":
             payload = self.todoist.reschedule_task(parsed["task_id"], parsed["due_string"])
+        elif name == "park_task":
+            payload = self.todoist.clear_due_date(parsed["task_id"])
         elif name == "reschedule_by_name":
             payload = self.todoist.reschedule_by_name(
                 parsed["name_query"], parsed["due_string"]

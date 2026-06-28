@@ -23,3 +23,27 @@ configuration:
   timezone:
     name: Zeitzone
     description: Zeitzone fuer geplante Nachrichten, zum Beispiel Europe/Berlin
+  planning_nudge_times:
+    name: Planungs-Erinnerungen
+    description: Kommagetrennte Zeiten fuer kurze Tagesplan-Erinnerungen, zum Beispiel 12:30,17:30
+  workday_start:
+    name: Arbeitstag-Start
+    description: Frueheste Uhrzeit fuer Slot-Vorschlaege im Format HH:MM
+  workday_end:
+    name: Arbeitstag-Ende
+    description: Spaeteste Uhrzeit fuer Slot-Vorschlaege im Format HH:MM
+  default_task_duration:
+    name: Standard-Aufgabendauer
+    description: Dauer in Minuten, wenn eine Todoist-Aufgabe keine Dauer hat
+  google_calendar_enabled:
+    name: Google Calendar aktivieren
+    description: Nutzt Google Free/Busy fuer Slot-Vorschlaege, wenn ein Token vorhanden ist
+  google_calendar_write_enabled:
+    name: Google Calendar schreiben
+    description: Erlaubt das Erstellen von Kalender-Events; standardmaessig deaktiviert
+  google_calendar_id:
+    name: Google Calendar-ID
+    description: Kalender-ID fuer Free/Busy und optionale Events, meist primary
+  google_token_file:
+    name: Google-Token-Datei
+    description: Pfad zur JSON-Datei mit Google OAuth access_token

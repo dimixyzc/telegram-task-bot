@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import re
+from datetime import datetime
 
 from telegram import InlineKeyboardMarkup, Update
 from telegram.ext import (
@@ -17,12 +18,17 @@ from telegram.ext import (
 
 from .assistant import TaskAssistant
 from .config import Settings
-from .formatters import (
-    format_all_task_chunks,
-    format_evening_review,
-    format_focus,
-    format_morning_briefing,
-    format_task_list,
+from .formatters import format_all_task_chunks, format_focus, format_task_list
+from .google_calendar import GoogleCalendarClient
+from .planning import (
+    PlanningEngine,
+    build_commitment_message,
+    build_evening_review_message,
+    build_nudge_message,
+    build_slot_keyboard,
+    build_slot_prompt,
+    build_split_prompt,
+    slot_by_key,
 )
 from .todoist_client import TodoistClient
 
@@ -33,11 +39,18 @@ _ALLOWED_TAGS = {"b", "i", "u", "s", "code", "pre", "a"}
 
 class BotRuntime:
     def __init__(
-        self, settings: Settings, todoist: TodoistClient, assistant: TaskAssistant
+        self,
+        settings: Settings,
+        todoist: TodoistClient,
+        assistant: TaskAssistant,
+        planner: PlanningEngine,
+        google_calendar: GoogleCalendarClient | None = None,
     ) -> None:
         self.settings = settings
         self.todoist = todoist
         self.assistant = assistant
+        self.planner = planner
+        self.google_calendar = google_calendar
         self.active_chat_id = self._load_chat_id()
 
     def _load_chat_id(self) -> str:
@@ -69,6 +82,7 @@ class BotRuntime:
             "/week - Nächste 7 Tage\n"
             "/briefing - Morgen-Briefing manuell\n"
             "/review - Abend-Review manuell\n"
+            "/plan - Tagesentscheidungen\n"
             "/register - Diese Chat-ID für tägliche Nachrichten eintragen\n"
             "/ping - Verbindung testen\n"
             "/clear - Gesprächskontext zurücksetzen\n\n"
@@ -151,8 +165,20 @@ class BotRuntime:
     ) -> None:
         await self._send_typing(update, context)
         try:
-            text, keyboard = format_morning_briefing(
-                self.todoist.list_tasks("today | overdue")
+            text, keyboard = build_commitment_message(
+                self.todoist.list_tasks("today | overdue"),
+                self.planner,
+            )
+            await update.message.reply_text(text, reply_markup=keyboard, parse_mode="HTML")
+        except Exception as exc:
+            await update.message.reply_text(f"❌ Fehler: {exc}")
+
+    async def cmd_plan(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        await self._send_typing(update, context)
+        try:
+            text, keyboard = build_nudge_message(
+                self.todoist.list_tasks("today | overdue"),
+                self.planner,
             )
             await update.message.reply_text(text, reply_markup=keyboard, parse_mode="HTML")
         except Exception as exc:
@@ -161,8 +187,9 @@ class BotRuntime:
     async def cmd_review(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await self._send_typing(update, context)
         try:
-            text, keyboard = format_evening_review(
-                self.todoist.list_tasks("today | overdue")
+            text, keyboard = build_evening_review_message(
+                self.todoist.list_tasks("today | overdue"),
+                self.planner,
             )
             await update.message.reply_text(text, reply_markup=keyboard, parse_mode="HTML")
         except Exception as exc:
@@ -192,19 +219,60 @@ class BotRuntime:
             if data.startswith("done:"):
                 task_id = data[5:]
                 self.todoist.complete_task(task_id)
+                self.planner.state.mark_decision(task_id, "done")
                 status_line = "✅ <i>Erledigt</i>"
             elif data.startswith("snooze0:"):
                 task_id = data[8:]
                 self.todoist.reschedule_task(task_id, "today")
+                self.planner.state.mark_decision(task_id, "today")
                 status_line = "📅 <i>Auf heute gesetzt</i>"
             elif data.startswith("snooze1:"):
                 task_id = data[8:]
                 self.todoist.reschedule_task(task_id, "tomorrow")
+                self.planner.state.mark_decision(task_id, "tomorrow")
                 status_line = "📅 <i>Auf morgen verschoben</i>"
             elif data.startswith("snooze7:"):
                 task_id = data[8:]
                 self.todoist.reschedule_task(task_id, "next sunday")
+                self.planner.state.mark_decision(task_id, "next_sunday")
                 status_line = "📅 <i>Auf nächsten Sonntag verschoben</i>"
+            elif data.startswith("park:"):
+                task_id = data[5:]
+                self.todoist.clear_due_date(task_id)
+                self.planner.state.mark_decision(task_id, "parked")
+                status_line = "🅿️ <i>Geparkt, ohne Fälligkeit</i>"
+            elif data.startswith("slot:"):
+                task_id = data[5:]
+                task = self._find_task(task_id)
+                slots = self._slot_suggestions(task)
+                await query.edit_message_text(
+                    build_slot_prompt(task, slots),
+                    parse_mode="HTML",
+                    reply_markup=build_slot_keyboard(task, slots),
+                )
+                return
+            elif data.startswith("slotset:"):
+                _, task_id, slot_key = data.split(":", 2)
+                task = self._find_task(task_id)
+                slot = slot_by_key(self._slot_suggestions(task), slot_key)
+                if slot is None:
+                    await query.edit_message_text(
+                        current_text + "\n\n❌ Slot ist nicht mehr verfügbar.",
+                        parse_mode="HTML",
+                    )
+                    return
+                self.todoist.reschedule_task(task_id, slot.due_string)
+                self.planner.state.mark_decision(task_id, f"slot:{slot.due_string}")
+                status_line = f"⏱️ <i>Geplant: {slot.label}</i>"
+            elif data.startswith("split:"):
+                task_id = data[6:]
+                task = self._find_task(task_id)
+                self.planner.state.mark_decision(task_id, "split_prompted")
+                await query.edit_message_text(
+                    build_split_prompt(task),
+                    parse_mode="HTML",
+                )
+                return
             else:
                 return
 
@@ -266,8 +334,9 @@ class BotRuntime:
             logger.warning("Keine Chat-ID gesetzt - Morning Briefing uebersprungen.")
             return
         try:
-            text, keyboard = format_morning_briefing(
-                self.todoist.list_tasks("today | overdue")
+            text, keyboard = build_commitment_message(
+                self.todoist.list_tasks("today | overdue"),
+                self.planner,
             )
             await context.bot.send_message(
                 chat_id=self.active_chat_id,
@@ -284,8 +353,9 @@ class BotRuntime:
             logger.warning("Keine Chat-ID gesetzt - Evening Review uebersprungen.")
             return
         try:
-            text, keyboard = format_evening_review(
-                self.todoist.list_tasks("today | overdue")
+            text, keyboard = build_evening_review_message(
+                self.todoist.list_tasks("today | overdue"),
+                self.planner,
             )
             await context.bot.send_message(
                 chat_id=self.active_chat_id,
@@ -296,6 +366,25 @@ class BotRuntime:
             logger.info("Evening Review gesendet.")
         except Exception as exc:
             logger.error("Evening Review Fehler: %s", exc)
+
+    async def job_planning_nudge(self, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not self.active_chat_id:
+            logger.warning("Keine Chat-ID gesetzt - Planning Nudge uebersprungen.")
+            return
+        try:
+            tasks_data = self.todoist.list_tasks("today | overdue")
+            if not self.planner.needs_nudge(tasks_data):
+                return
+            text, keyboard = build_nudge_message(tasks_data, self.planner)
+            await context.bot.send_message(
+                chat_id=self.active_chat_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode="HTML",
+            )
+            logger.info("Planning Nudge gesendet.")
+        except Exception as exc:
+            logger.error("Planning Nudge Fehler: %s", exc)
 
     def register_handlers(self, app: Application) -> None:
         app.add_handler(CommandHandler("start", self.cmd_start))
@@ -308,6 +397,7 @@ class BotRuntime:
         app.add_handler(CommandHandler("week", self.cmd_week))
         app.add_handler(CommandHandler("briefing", self.cmd_briefing))
         app.add_handler(CommandHandler("review", self.cmd_review))
+        app.add_handler(CommandHandler("plan", self.cmd_plan))
         app.add_handler(CommandHandler("clear", self.cmd_clear))
         app.add_handler(CallbackQueryHandler(self.handle_callback))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.chat))
@@ -334,10 +424,17 @@ class BotRuntime:
             self.settings.evening_time_value,
             name="evening_review",
         )
+        for index, nudge_time in enumerate(self.settings.planning_nudge_time_values, start=1):
+            app.job_queue.run_daily(
+                self.job_planning_nudge,
+                nudge_time,
+                name=f"planning_nudge_{index}",
+            )
         logger.info(
-            "Geplant: Briefing %s, Review %s (%s)",
+            "Geplant: Briefing %s, Review %s, Nudges %s (%s)",
             self.settings.morning_time,
             self.settings.evening_time,
+            self.settings.planning_nudge_times,
             self.settings.timezone,
         )
 
@@ -347,6 +444,32 @@ class BotRuntime:
         await context.bot.send_chat_action(
             chat_id=update.effective_chat.id, action="typing"
         )
+
+    def _find_task(self, task_id: str) -> dict:
+        for task in self.todoist.list_tasks("today | overdue").get("tasks", []):
+            if str(task.get("id")) == task_id:
+                return task
+        for task in self.todoist.fetch_all_tasks():
+            if str(task.get("id")) == task_id:
+                from .todoist_client import normalize_task
+
+                return normalize_task(task)
+        raise RuntimeError("Aufgabe nicht mehr gefunden")
+
+    def _slot_suggestions(self, task: dict):
+        duration = self.planner.default_duration(task)
+        if self.google_calendar:
+            try:
+                return self.google_calendar.find_free_slots(
+                    duration_minutes=duration,
+                    timezone=self.settings.zoneinfo,
+                    workday_start=self.settings.workday_start_value,
+                    workday_end=self.settings.workday_end_value,
+                    now=datetime.now(tz=self.settings.zoneinfo),
+                )
+            except Exception as exc:
+                logger.warning("Google Calendar Slots nicht verfuegbar: %s", exc)
+        return self.planner.fallback_slots(task, now=datetime.now(tz=self.settings.zoneinfo))
 
 
 def sanitize_html(text: str) -> str:
@@ -391,9 +514,18 @@ def _remaining_keyboard_rows(
         row_task_id = None
         for button in row:
             callback_data = button.callback_data or ""
-            for prefix in ("done:", "snooze0:", "snooze1:", "snooze7:"):
+            for prefix in (
+                "done:",
+                "snooze0:",
+                "snooze1:",
+                "snooze7:",
+                "park:",
+                "slot:",
+                "split:",
+                "slotset:",
+            ):
                 if callback_data.startswith(prefix):
-                    row_task_id = callback_data[len(prefix) :]
+                    row_task_id = callback_data[len(prefix) :].split(":", 1)[0]
                     break
             if row_task_id:
                 break

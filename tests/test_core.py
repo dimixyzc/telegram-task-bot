@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 import unittest
-from datetime import date
+from datetime import date, datetime, time
+from tempfile import TemporaryDirectory
 
 from dimi_task_assistant.task_bot.config import parse_hhmm
 from dimi_task_assistant.task_bot.formatters import (
     format_morning_briefing,
     select_focus_task,
+)
+from dimi_task_assistant.task_bot.google_calendar import _free_slots_from_busy
+from dimi_task_assistant.task_bot.planning import (
+    PlannerStateStore,
+    PlanningEngine,
+    build_commitment_message,
 )
 from dimi_task_assistant.task_bot.telegram_handlers import sanitize_html
 from dimi_task_assistant.task_bot.todoist_client import (
@@ -109,6 +116,73 @@ class FormatterTests(unittest.TestCase):
             today=date(2026, 5, 30),
         )
         self.assertEqual(select_focus_task(summary["tasks"])["id"], "overdue")
+
+
+class PlanningTests(unittest.TestCase):
+    def test_commitment_message_limits_to_three_undecided_tasks(self) -> None:
+        today = date(2026, 5, 30)
+        raw_tasks = [
+            {
+                "id": str(index),
+                "content": f"Task {index}",
+                "priority": 4 if index == 1 else 1,
+                "due": {"date": today.isoformat(), "string": "heute"},
+            }
+            for index in range(1, 6)
+        ]
+        with TemporaryDirectory() as tmpdir:
+            state = PlannerStateStore(f"{tmpdir}/state.json")
+            planner = PlanningEngine(state=state)
+            summary = summarize_tasks(raw_tasks, today=today)
+            text, keyboard = build_commitment_message(summary, planner)
+
+        self.assertIn("Heute wirklich", text)
+        self.assertEqual(text.count("Task "), 3)
+        self.assertIsNotNone(keyboard)
+
+    def test_planner_state_hides_decided_tasks_for_today(self) -> None:
+        today = date.today()
+        raw_tasks = [
+            {
+                "id": "1",
+                "content": "Schon entschieden",
+                "priority": 4,
+                "due": {"date": today.isoformat(), "string": "heute"},
+            },
+            {
+                "id": "2",
+                "content": "Noch offen",
+                "priority": 1,
+                "due": {"date": today.isoformat(), "string": "heute"},
+            },
+        ]
+        with TemporaryDirectory() as tmpdir:
+            state = PlannerStateStore(f"{tmpdir}/state.json")
+            state.mark_decision("1", "tomorrow")
+            planner = PlanningEngine(state=state)
+            summary = summarize_tasks(raw_tasks, today=today)
+            commitments = planner.commitment_tasks(summary)
+
+        self.assertEqual([task["id"] for task in commitments], ["2"])
+
+    def test_free_slots_skip_busy_ranges(self) -> None:
+        tz = ZoneInfo("Europe/Berlin")
+        slots = _free_slots_from_busy(
+            busy=[
+                {
+                    "start": "2026-05-30T09:00:00+02:00",
+                    "end": "2026-05-30T10:00:00+02:00",
+                }
+            ],
+            start=datetime(2026, 5, 30, 8, 0, tzinfo=tz),
+            duration_minutes=30,
+            timezone=tz,
+            workday_start=time(9, 0, tzinfo=tz),
+            workday_end=time(18, 0, tzinfo=tz),
+            days=1,
+        )
+
+        self.assertEqual(slots[0].due_string, "2026-05-30 at 10:00")
 
 
 class UtilityTests(unittest.TestCase):

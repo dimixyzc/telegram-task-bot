@@ -23,3 +23,27 @@ configuration:
   timezone:
     name: Timezone
     description: Timezone for scheduled messages, for example Europe/Berlin
+  planning_nudge_times:
+    name: Planning nudge times
+    description: Comma-separated times for short daily planning nudges, for example 12:30,17:30
+  workday_start:
+    name: Workday start
+    description: Earliest time for slot suggestions in HH:MM format
+  workday_end:
+    name: Workday end
+    description: Latest time for slot suggestions in HH:MM format
+  default_task_duration:
+    name: Default task duration
+    description: Duration in minutes when a Todoist task has no duration
+  google_calendar_enabled:
+    name: Enable Google Calendar
+    description: Uses Google Free/Busy for slot suggestions when a token is available
+  google_calendar_write_enabled:
+    name: Write Google Calendar
+    description: Allows creating calendar events; disabled by default
+  google_calendar_id:
+    name: Google Calendar ID
+    description: Calendar ID for Free/Busy and optional events, usually primary
+  google_token_file:
+    name: Google token file
+    description: Path to the JSON file with a Google OAuth access_token

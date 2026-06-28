@@ -232,6 +232,23 @@ class TodoistClient:
             "new_due": (task.get("due") or {}).get("string", due_string),
         }
 
+    def clear_due_date(self, task_id: str) -> JsonDict:
+        response = self.client.post(
+            f"{self.api_base}/tasks/{task_id}",
+            headers=self.headers(),
+            json={"due_date": None, "due_string": None},
+        )
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError:
+            response = self.client.post(
+                f"{self.api_base}/tasks/{task_id}",
+                headers=self.headers(),
+                json={"due_string": "no date"},
+            )
+            response.raise_for_status()
+        return {"status": "parked", "task_id": task_id}
+
     def reschedule_by_name(self, name_query: str, due_string: str) -> JsonDict:
         tasks = self.fetch_all_tasks()
         matches = match_tasks_by_name(tasks, name_query)

@@ -26,6 +26,10 @@ This is the recommended setup if you want the bot to run permanently on your Int
    - `MORNING_TIME`, default `07:30`
    - `EVENING_TIME`, default `20:00`
    - `TIMEZONE`, default `Europe/Berlin`
+   - `PLANNING_NUDGE_TIMES`, default `12:30,17:30`
+   - `WORKDAY_START`, `WORKDAY_END`, defaults `09:00` and `18:00`
+   - `DEFAULT_TASK_DURATION`, default `30`
+   - optional Google Calendar flags: `GOOGLE_CALENDAR_ENABLED`, `GOOGLE_CALENDAR_WRITE_ENABLED`, `GOOGLE_CALENDAR_ID`, `GOOGLE_TOKEN_FILE`
 3. Build and start the container:
 
 ```bash
@@ -54,6 +58,8 @@ Notes:
 - The bot uses polling, so it does not need an exposed port.
 - `restart: unless-stopped` makes it come back automatically after NUC reboots.
 - If Home Assistant runs on the same NUC, keep this bot separate from Home Assistant itself. Run it as an additional Docker service.
+- Morning and evening messages now focus on daily decisions. `/plan` shows still-undecided due or overdue tasks, and nudge jobs remind you if they are still unresolved.
+- Google Calendar is optional. If enabled, the bot reads `GOOGLE_TOKEN_FILE` as JSON with an `access_token` and uses free/busy data for slot suggestions. With write access disabled, Todoist remains the only system the bot updates.
 
 ## Home Assistant OS add-on
 
@@ -76,11 +82,12 @@ Install flow on Home Assistant OS:
    - `telegram_token`
    - `openai_api_key`
    - `openai_model`
-   - `todoist_api_token`
-   - `telegram_chat_id` optional; use `/register` if you leave it empty
-   - `morning_time`
-   - `evening_time`
-   - `timezone`
+- `todoist_api_token`
+- `telegram_chat_id` optional; use `/register` if you leave it empty
+- `morning_time`
+- `evening_time`
+- `timezone`
+   - optional planning and Google Calendar settings
 7. Start the add-on and inspect the logs.
 
 The add-on stores the registered chat ID in `/data/chat_id.txt`, so daily messages keep working across restarts. Setting `telegram_chat_id` in the add-on configuration overrides that persisted value.
