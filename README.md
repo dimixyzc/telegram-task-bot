@@ -59,7 +59,7 @@ Notes:
 - `restart: unless-stopped` makes it come back automatically after NUC reboots.
 - If Home Assistant runs on the same NUC, keep this bot separate from Home Assistant itself. Run it as an additional Docker service.
 - Morning and evening messages now focus on daily decisions. `/plan` shows still-undecided due or overdue tasks, and nudge jobs remind you if they are still unresolved.
-- Google Calendar is optional. If enabled, the bot reads `GOOGLE_TOKEN_FILE` as JSON with an `access_token` and uses free/busy data for slot suggestions. With write access disabled, Todoist remains the only system the bot updates.
+- Google Calendar is optional. If enabled, the bot reads `GOOGLE_TOKEN_FILE` as JSON with an `access_token` and can use free/busy data for calendar-aware planning options. With write access disabled, Todoist remains the only system the bot updates.
 
 ## Home Assistant OS add-on
 

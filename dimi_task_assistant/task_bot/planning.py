@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, timedelta
 from html import escape
 from typing import Any
 
@@ -17,6 +17,13 @@ StateDict = dict[str, Any]
 
 @dataclass(frozen=True)
 class SlotSuggestion:
+    key: str
+    label: str
+    due_string: str
+
+
+@dataclass(frozen=True)
+class DayOption:
     key: str
     label: str
     due_string: str
@@ -106,16 +113,6 @@ class PlanningEngine:
             return duration
         return self.default_task_duration
 
-    def fallback_slots(self, task: JsonDict, now: datetime | None = None) -> list[SlotSuggestion]:
-        now = now or datetime.now()
-        duration = self.default_duration(task)
-        today_hour = min(max(now.hour + 2, 9), 18)
-        return [
-            SlotSuggestion("a", f"Heute {today_hour:02d}:00", f"today at {today_hour:02d}:00"),
-            SlotSuggestion("b", "Morgen 09:00", "tomorrow at 09:00"),
-            SlotSuggestion("c", "Nächster Werktag 09:00", "next weekday at 09:00"),
-        ][: 2 if duration > 90 else 3]
-
 
 def build_commitment_message(
     tasks_data: JsonDict, planner: PlanningEngine
@@ -144,7 +141,7 @@ def build_commitment_message(
         for task in commitments:
             lines.append(f"  {_task_line(task)}")
         lines.append("")
-        lines.append("📌 Entscheide jede offene Aufgabe kurz: erledigen, planen oder kleiner machen.")
+        lines.append("📌 Entscheide jede offene Aufgabe kurz: erledigen oder auf einen passenden Tag legen.")
     else:
         lines.append("✅ Alles für heute ist entschieden.")
 
@@ -164,7 +161,7 @@ def build_evening_review_message(
     for task in action_tasks[:6]:
         lines.append(f"  {_task_line(task)}")
     lines.append("")
-    lines.append("Nimm dir 30 Sekunden: erledigt, morgen, Slot oder kleiner machen.")
+    lines.append("Nimm dir 30 Sekunden: erledigt, morgen oder einen passenden Tag wählen.")
     return "\n".join(lines).strip(), build_planning_keyboard(action_tasks[:6])
 
 
@@ -196,8 +193,7 @@ def build_planning_keyboard(tasks: list[JsonDict], max_items: int = 6) -> Inline
             [
                 InlineKeyboardButton(f"✅ {label}", callback_data=f"done:{task_id}"),
                 InlineKeyboardButton("📅 Morgen", callback_data=f"snooze1:{task_id}"),
-                InlineKeyboardButton("⏱️ Slot", callback_data=f"slot:{task_id}"),
-                InlineKeyboardButton("✂️ Klein", callback_data=f"split:{task_id}"),
+                InlineKeyboardButton("📅 Tag", callback_data=f"date:{task_id}"),
             ]
         )
         if task.get("is_overdue") and int(task.get("days_overdue", 0)) >= 2:
@@ -210,48 +206,61 @@ def build_planning_keyboard(tasks: list[JsonDict], max_items: int = 6) -> Inline
     return InlineKeyboardMarkup(rows)
 
 
-def build_slot_keyboard(task: JsonDict, slots: list[SlotSuggestion]) -> InlineKeyboardMarkup:
+def build_date_keyboard(task: JsonDict, options: list[DayOption]) -> InlineKeyboardMarkup:
+    task_id = str(task["id"])
     rows = [
         [
             InlineKeyboardButton(
-                f"⏱️ {slot.label}",
-                callback_data=f"slotset:{task['id']}:{slot.key}",
+                f"📅 {option.label}",
+                callback_data=f"day:{task_id}:{option.key}",
             )
         ]
-        for slot in slots[:3]
+        for option in options
     ]
-    rows.append([InlineKeyboardButton("📅 Morgen", callback_data=f"snooze1:{task['id']}")])
+    rows.append(
+        [
+            InlineKeyboardButton("🅿️ Parken", callback_data=f"park:{task_id}"),
+            InlineKeyboardButton("↩️ Zurück", callback_data=f"back:{task_id}"),
+        ]
+    )
     return InlineKeyboardMarkup(rows)
 
 
-def build_slot_prompt(task: JsonDict, slots: list[SlotSuggestion]) -> str:
-    duration = format_duration(task.get("duration"), task.get("duration_unit")) or "30 min"
-    lines = [
-        "⏱️ <b>Zeitblock wählen</b>",
-        "",
-        f"{_task_line(task)}",
-        f"<i>Dauer: {escape(duration)}</i>",
-    ]
-    if not slots:
-        lines.append("")
-        lines.append("Ich finde gerade keinen Slot. Du kannst trotzdem auf morgen schieben.")
-    return "\n".join(lines)
-
-
-def build_split_prompt(task: JsonDict) -> str:
-    content = escape(str(task.get("content", "")))
-    return (
-        "✂️ <b>Kleiner machen</b>\n\n"
-        f"{content}\n\n"
-        "Schreib zum Beispiel:\n"
-        f"<i>Zerlege {content} in 3 kleine Schritte</i>"
+def build_date_prompt(task: JsonDict) -> str:
+    return "\n".join(
+        [
+            "📅 <b>Auf welchen Tag?</b>",
+            "",
+            _task_line(task),
+        ]
     )
 
 
-def slot_by_key(slots: list[SlotSuggestion], key: str) -> SlotSuggestion | None:
-    for slot in slots:
-        if slot.key == key:
-            return slot
+def build_single_task_prompt(task: JsonDict) -> tuple[str, InlineKeyboardMarkup | None]:
+    return (
+        "\n".join(["📌 <b>Aufgabe entscheiden</b>", "", _task_line(task)]),
+        build_planning_keyboard([task], max_items=1),
+    )
+
+
+def day_options(today: date | None = None) -> list[DayOption]:
+    today = today or date.today()
+    options = [
+        DayOption("today", "Heute", "today"),
+        DayOption("tomorrow", "Morgen", "tomorrow"),
+        DayOption("overmorrow", "Übermorgen", (today + timedelta(days=2)).isoformat()),
+    ]
+    for offset in range(3, 8):
+        target = today + timedelta(days=offset)
+        options.append(DayOption(target.isoformat(), _day_label(target), target.isoformat()))
+    options.append(DayOption("next_week", "Nächste Woche", "next week"))
+    return options
+
+
+def day_option_by_key(options: list[DayOption], key: str) -> DayOption | None:
+    for option in options:
+        if option.key == key:
+            return option
     return None
 
 
@@ -288,3 +297,8 @@ def _priority_marker(task: JsonDict) -> str:
 
 def _short_label(value: str, limit: int) -> str:
     return value[:limit] + ("..." if len(value) > limit else "")
+
+
+def _day_label(value: date) -> str:
+    weekdays = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+    return f"{weekdays[value.weekday()]} {value:%d.%m.}"

@@ -36,7 +36,7 @@ GOOGLE_CALENDAR_WRITE_ENABLED="$(bashio::config 'google_calendar_write_enabled' 
 GOOGLE_CALENDAR_ID="$(bashio::config 'google_calendar_id' 'primary')"
 GOOGLE_TOKEN_FILE="$(bashio::config 'google_token_file' '/data/google_token.json')"
 
-bashio::log.info "Starting Dimi Task Assistant v0.3.0"
+bashio::log.info "Starting Dimi Task Assistant v0.3.1"
 bashio::log.info "Morning briefing at: ${MORNING_TIME} | Evening review at: ${EVENING_TIME} | Nudges: ${PLANNING_NUDGE_TIMES} | TZ: ${TIMEZONE}"
 
 exec python3 -u /opt/dimi-task-assistant/bot.py

@@ -13,7 +13,9 @@ from dimi_task_assistant.task_bot.google_calendar import _free_slots_from_busy
 from dimi_task_assistant.task_bot.planning import (
     PlannerStateStore,
     PlanningEngine,
+    build_date_keyboard,
     build_commitment_message,
+    day_options,
 )
 from dimi_task_assistant.task_bot.telegram_handlers import sanitize_html
 from dimi_task_assistant.task_bot.todoist_client import (
@@ -164,6 +166,44 @@ class PlanningTests(unittest.TestCase):
             commitments = planner.commitment_tasks(summary)
 
         self.assertEqual([task["id"] for task in commitments], ["2"])
+
+    def test_planning_keyboard_uses_day_choice_without_small_or_slot_buttons(self) -> None:
+        today = date(2026, 5, 30)
+        raw_task = {
+            "id": "1",
+            "content": "Termin klaeren",
+            "priority": 2,
+            "due": {"date": today.isoformat(), "string": "heute"},
+        }
+        with TemporaryDirectory() as tmpdir:
+            state = PlannerStateStore(f"{tmpdir}/state.json")
+            planner = PlanningEngine(state=state)
+            summary = summarize_tasks([raw_task], today=today)
+            _, keyboard = build_commitment_message(summary, planner)
+
+        button_texts = [
+            button.text
+            for row in keyboard.inline_keyboard
+            for button in row
+        ]
+        self.assertIn("📅 Tag", button_texts)
+        self.assertNotIn("✂️ Klein", button_texts)
+        self.assertNotIn("⏱️ Slot", button_texts)
+
+    def test_day_menu_has_back_option_and_next_days(self) -> None:
+        task = {"id": "1", "content": "Termin klaeren", "priority": 1}
+        options = day_options(today=date(2026, 5, 30))
+        keyboard = build_date_keyboard(task, options)
+        button_texts = [
+            button.text
+            for row in keyboard.inline_keyboard
+            for button in row
+        ]
+
+        self.assertIn("📅 Heute", button_texts)
+        self.assertIn("📅 Morgen", button_texts)
+        self.assertIn("📅 Nächste Woche", button_texts)
+        self.assertIn("↩️ Zurück", button_texts)
 
     def test_free_slots_skip_busy_ranges(self) -> None:
         tz = ZoneInfo("Europe/Berlin")

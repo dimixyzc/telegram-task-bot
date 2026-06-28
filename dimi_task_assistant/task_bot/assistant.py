@@ -170,7 +170,6 @@ SYSTEM_PROMPT = (
     "Wenn der Nutzer eine Aufgabe beim Namen nennt und verschieben will, nutze reschedule_by_name. "
     "Wenn der Nutzer eine Aufgabe beim Namen nennt und abhaken will, nutze complete_by_name. "
     "Wenn der Nutzer eine Aufgabe parken will, liste erst Aufgaben und nutze park_task nur mit sicherer task_id. "
-    "Wenn der Nutzer eine grosse Aufgabe zerlegen will, schlage 3 bis 5 konkrete kleine Schritte vor. "
     "reschedule_task und complete_task nur nutzen, wenn du eine task_id aus list_tasks hast. "
     "Falls mehrere Aufgaben passen, frage kurz nach dem genaueren Namen und liste kurze Optionen. "
     "Bestatige kurz, was du gemacht hast. "

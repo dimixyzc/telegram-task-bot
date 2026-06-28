@@ -28,16 +28,16 @@ configuration:
     description: Comma-separated times for short daily planning nudges, for example 12:30,17:30
   workday_start:
     name: Workday start
-    description: Earliest time for slot suggestions in HH:MM format
+    description: Earliest time for calendar-aware planning options in HH:MM format
   workday_end:
     name: Workday end
-    description: Latest time for slot suggestions in HH:MM format
+    description: Latest time for calendar-aware planning options in HH:MM format
   default_task_duration:
     name: Default task duration
     description: Duration in minutes when a Todoist task has no duration
   google_calendar_enabled:
     name: Enable Google Calendar
-    description: Uses Google Free/Busy for slot suggestions when a token is available
+    description: Uses Google Free/Busy for calendar-aware planning options when a token is available
   google_calendar_write_enabled:
     name: Write Google Calendar
     description: Allows creating calendar events; disabled by default

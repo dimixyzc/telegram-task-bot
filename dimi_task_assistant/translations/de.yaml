@@ -28,16 +28,16 @@ configuration:
     description: Kommagetrennte Zeiten fuer kurze Tagesplan-Erinnerungen, zum Beispiel 12:30,17:30
   workday_start:
     name: Arbeitstag-Start
-    description: Frueheste Uhrzeit fuer Slot-Vorschlaege im Format HH:MM
+    description: Frueheste Uhrzeit fuer kalendergestuetzte Planungsoptionen im Format HH:MM
   workday_end:
     name: Arbeitstag-Ende
-    description: Spaeteste Uhrzeit fuer Slot-Vorschlaege im Format HH:MM
+    description: Spaeteste Uhrzeit fuer kalendergestuetzte Planungsoptionen im Format HH:MM
   default_task_duration:
     name: Standard-Aufgabendauer
     description: Dauer in Minuten, wenn eine Todoist-Aufgabe keine Dauer hat
   google_calendar_enabled:
     name: Google Calendar aktivieren
-    description: Nutzt Google Free/Busy fuer Slot-Vorschlaege, wenn ein Token vorhanden ist
+    description: Nutzt Google Free/Busy fuer kalendergestuetzte Planungsoptionen, wenn ein Token vorhanden ist
   google_calendar_write_enabled:
     name: Google Calendar schreiben
     description: Erlaubt das Erstellen von Kalender-Events; standardmaessig deaktiviert

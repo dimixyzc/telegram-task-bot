@@ -20,9 +20,9 @@ Telegram task assistant with OpenAI and Todoist for Home Assistant OS.
 - `evening_time`: Daily review time, default `20:00`
 - `timezone`: Timezone for scheduled messages, default `Europe/Berlin`
 - `planning_nudge_times`: Comma-separated times for short planning nudges, default `12:30,17:30`
-- `workday_start` / `workday_end`: Local workday window used for slot suggestions
+- `workday_start` / `workday_end`: Local workday window used for calendar-aware planning options
 - `default_task_duration`: Duration in minutes when a Todoist task has no duration
-- `google_calendar_enabled`: Optional free/busy slot suggestions from Google Calendar
+- `google_calendar_enabled`: Optional free/busy data from Google Calendar
 - `google_calendar_write_enabled`: Optional event creation in Google Calendar, off by default
 - `google_calendar_id`: Usually `primary`
 - `google_token_file`: JSON file containing a Google OAuth `access_token`
@@ -43,4 +43,4 @@ Telegram task assistant with OpenAI and Todoist for Home Assistant OS.
 - The add-on uses Telegram polling, so no port needs to be exposed.
 - The bot will keep running after Home Assistant restarts.
 - `/all`, `/today`, `/overdue`, `/focus`, `/week`, `/briefing`, `/plan`, `/review`, `/register`, `/ping`, and `/clear` are available in the add-on.
-- `/briefing`, `/plan`, and `/review` are decision-oriented: each due or overdue task can be marked done, moved to tomorrow, assigned to a slot, parked, or made smaller.
+- `/briefing`, `/plan`, and `/review` are decision-oriented: each due or overdue task can be marked done, moved to tomorrow, moved to a selected day, or parked.

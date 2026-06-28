@@ -4,7 +4,6 @@ import asyncio
 import logging
 import os
 import re
-from datetime import datetime
 
 from telegram import InlineKeyboardMarkup, Update
 from telegram.ext import (
@@ -23,12 +22,13 @@ from .google_calendar import GoogleCalendarClient
 from .planning import (
     PlanningEngine,
     build_commitment_message,
+    build_date_keyboard,
+    build_date_prompt,
     build_evening_review_message,
     build_nudge_message,
-    build_slot_keyboard,
-    build_slot_prompt,
-    build_split_prompt,
-    slot_by_key,
+    build_single_task_prompt,
+    day_option_by_key,
+    day_options,
 )
 from .todoist_client import TodoistClient
 
@@ -241,38 +241,37 @@ class BotRuntime:
                 self.todoist.clear_due_date(task_id)
                 self.planner.state.mark_decision(task_id, "parked")
                 status_line = "🅿️ <i>Geparkt, ohne Fälligkeit</i>"
-            elif data.startswith("slot:"):
+            elif data.startswith("date:"):
                 task_id = data[5:]
                 task = self._find_task(task_id)
-                slots = self._slot_suggestions(task)
                 await query.edit_message_text(
-                    build_slot_prompt(task, slots),
+                    build_date_prompt(task),
                     parse_mode="HTML",
-                    reply_markup=build_slot_keyboard(task, slots),
+                    reply_markup=build_date_keyboard(task, day_options()),
                 )
                 return
-            elif data.startswith("slotset:"):
-                _, task_id, slot_key = data.split(":", 2)
+            elif data.startswith("back:"):
+                task_id = data[5:]
                 task = self._find_task(task_id)
-                slot = slot_by_key(self._slot_suggestions(task), slot_key)
-                if slot is None:
+                text, keyboard = build_single_task_prompt(task)
+                await query.edit_message_text(
+                    text,
+                    parse_mode="HTML",
+                    reply_markup=keyboard,
+                )
+                return
+            elif data.startswith("day:"):
+                _, task_id, day_key = data.split(":", 2)
+                option = day_option_by_key(day_options(), day_key)
+                if option is None:
                     await query.edit_message_text(
-                        current_text + "\n\n❌ Slot ist nicht mehr verfügbar.",
+                        current_text + "\n\n❌ Tag ist nicht mehr verfügbar.",
                         parse_mode="HTML",
                     )
                     return
-                self.todoist.reschedule_task(task_id, slot.due_string)
-                self.planner.state.mark_decision(task_id, f"slot:{slot.due_string}")
-                status_line = f"⏱️ <i>Geplant: {slot.label}</i>"
-            elif data.startswith("split:"):
-                task_id = data[6:]
-                task = self._find_task(task_id)
-                self.planner.state.mark_decision(task_id, "split_prompted")
-                await query.edit_message_text(
-                    build_split_prompt(task),
-                    parse_mode="HTML",
-                )
-                return
+                self.todoist.reschedule_task(task_id, option.due_string)
+                self.planner.state.mark_decision(task_id, f"day:{option.due_string}")
+                status_line = f"📅 <i>Auf {option.label} verschoben</i>"
             else:
                 return
 
@@ -456,21 +455,6 @@ class BotRuntime:
                 return normalize_task(task)
         raise RuntimeError("Aufgabe nicht mehr gefunden")
 
-    def _slot_suggestions(self, task: dict):
-        duration = self.planner.default_duration(task)
-        if self.google_calendar:
-            try:
-                return self.google_calendar.find_free_slots(
-                    duration_minutes=duration,
-                    timezone=self.settings.zoneinfo,
-                    workday_start=self.settings.workday_start_value,
-                    workday_end=self.settings.workday_end_value,
-                    now=datetime.now(tz=self.settings.zoneinfo),
-                )
-            except Exception as exc:
-                logger.warning("Google Calendar Slots nicht verfuegbar: %s", exc)
-        return self.planner.fallback_slots(task, now=datetime.now(tz=self.settings.zoneinfo))
-
 
 def sanitize_html(text: str) -> str:
     text = text.replace("\\n", "\n")
@@ -520,9 +504,9 @@ def _remaining_keyboard_rows(
                 "snooze1:",
                 "snooze7:",
                 "park:",
-                "slot:",
-                "split:",
-                "slotset:",
+                "date:",
+                "day:",
+                "back:",
             ):
                 if callback_data.startswith(prefix):
                     row_task_id = callback_data[len(prefix) :].split(":", 1)[0]
