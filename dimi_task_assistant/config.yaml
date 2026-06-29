@@ -1,5 +1,5 @@
 name: "Dimi Task Assistant"
-version: "0.3.1"
+version: "0.3.2"
 slug: "dimi_task_assistant"
 description: "Telegram Todoist task assistant powered by OpenAI – with daily briefings and inline task actions."
 url: "https://github.com/dimixyzc/telegram-task-bot"
