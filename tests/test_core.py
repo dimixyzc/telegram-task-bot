@@ -15,9 +15,15 @@ from dimi_task_assistant.task_bot.planning import (
     PlanningEngine,
     build_date_keyboard,
     build_commitment_message,
+    build_planning_keyboard,
     day_options,
 )
-from dimi_task_assistant.task_bot.telegram_handlers import sanitize_html
+from dimi_task_assistant.task_bot.telegram_handlers import (
+    _pop_planning_context,
+    _remaining_keyboard_rows,
+    _store_planning_context,
+    sanitize_html,
+)
 from dimi_task_assistant.task_bot.todoist_client import (
     format_duration,
     match_tasks_by_name,
@@ -25,6 +31,28 @@ from dimi_task_assistant.task_bot.todoist_client import (
     summarize_tasks,
 )
 from zoneinfo import ZoneInfo
+
+
+class _FakeChat:
+    def __init__(self, id: int) -> None:
+        self.id = id
+
+
+class _FakeMessage:
+    def __init__(self, chat: _FakeChat, message_id: int, reply_markup) -> None:
+        self.chat = chat
+        self.message_id = message_id
+        self.reply_markup = reply_markup
+
+
+class _FakeQuery:
+    def __init__(self, message: _FakeMessage) -> None:
+        self.message = message
+
+
+class _FakeContext:
+    def __init__(self) -> None:
+        self.user_data = {}
 
 
 class TodoistCoreTests(unittest.TestCase):
@@ -204,6 +232,29 @@ class PlanningTests(unittest.TestCase):
         self.assertIn("📅 Morgen", button_texts)
         self.assertIn("📅 Nächste Woche", button_texts)
         self.assertIn("↩️ Zurück", button_texts)
+
+    def test_date_menu_can_return_to_remaining_planning_rows(self) -> None:
+        tasks = [
+            {"id": "1", "content": "Erste Aufgabe", "priority": 1},
+            {"id": "2", "content": "Zweite Aufgabe", "priority": 1},
+        ]
+        original_keyboard = build_planning_keyboard(tasks)
+        query = _FakeQuery(
+            message=_FakeMessage(
+                chat=_FakeChat(id=123),
+                message_id=456,
+                reply_markup=original_keyboard,
+            )
+        )
+        context = _FakeContext()
+
+        _store_planning_context(context, query, "1", "Original")
+        original_text, restored_keyboard = _pop_planning_context(context, query, "1")
+        remaining_rows = _remaining_keyboard_rows(restored_keyboard, "1")
+
+        self.assertEqual(original_text, "Original")
+        self.assertEqual(len(remaining_rows), 1)
+        self.assertEqual(remaining_rows[0][0].callback_data, "done:2")
 
     def test_free_slots_skip_busy_ranges(self) -> None:
         tz = ZoneInfo("Europe/Berlin")

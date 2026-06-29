@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import re
+from typing import Any
 
 from telegram import InlineKeyboardMarkup, Update
 from telegram.ext import (
@@ -244,6 +245,7 @@ class BotRuntime:
             elif data.startswith("date:"):
                 task_id = data[5:]
                 task = self._find_task(task_id)
+                _store_planning_context(context, query, task_id, current_text)
                 await query.edit_message_text(
                     build_date_prompt(task),
                     parse_mode="HTML",
@@ -252,6 +254,15 @@ class BotRuntime:
                 return
             elif data.startswith("back:"):
                 task_id = data[5:]
+                planning_context = _pop_planning_context(context, query, task_id)
+                if planning_context:
+                    original_text, original_markup = planning_context
+                    await query.edit_message_text(
+                        original_text,
+                        parse_mode="HTML",
+                        reply_markup=original_markup,
+                    )
+                    return
                 task = self._find_task(task_id)
                 text, keyboard = build_single_task_prompt(task)
                 await query.edit_message_text(
@@ -275,10 +286,16 @@ class BotRuntime:
             else:
                 return
 
-            task_label = _find_task_label(query.message.reply_markup, task_id)
+            planning_context = _pop_planning_context(context, query, task_id)
+            base_text = current_text
+            base_markup = query.message.reply_markup
+            if planning_context:
+                base_text, base_markup = planning_context
+
+            task_label = _find_task_label(base_markup, task_id)
             label_suffix = f" - <i>{task_label}</i>" if task_label else ""
-            new_text = current_text + f"\n{status_line}{label_suffix}"
-            remaining_rows = _remaining_keyboard_rows(query.message.reply_markup, task_id)
+            new_text = base_text + f"\n{status_line}{label_suffix}"
+            remaining_rows = _remaining_keyboard_rows(base_markup, task_id)
             if remaining_rows:
                 await query.edit_message_text(
                     new_text,
@@ -486,6 +503,49 @@ def _find_task_label(reply_markup: InlineKeyboardMarkup | None, task_id: str) ->
             if button.callback_data == f"done:{task_id}":
                 return button.text.replace("✅ ", "").strip()
     return ""
+
+
+def _store_planning_context(
+    context: ContextTypes.DEFAULT_TYPE,
+    query: Any,
+    task_id: str,
+    current_text: str,
+) -> None:
+    key = _planning_context_key(query)
+    if not key or context.user_data is None:
+        return
+    contexts = context.user_data.setdefault("planning_contexts", {})
+    contexts[key] = {
+        "task_id": task_id,
+        "text": current_text,
+        "reply_markup": query.message.reply_markup,
+    }
+
+
+def _pop_planning_context(
+    context: ContextTypes.DEFAULT_TYPE,
+    query: Any,
+    task_id: str,
+) -> tuple[str, InlineKeyboardMarkup | None] | None:
+    key = _planning_context_key(query)
+    if not key or context.user_data is None:
+        return None
+    contexts = context.user_data.get("planning_contexts", {})
+    payload = contexts.get(key)
+    if not isinstance(payload, dict) or payload.get("task_id") != task_id:
+        return None
+    contexts.pop(key, None)
+    return str(payload.get("text", "")), payload.get("reply_markup")
+
+
+def _planning_context_key(query: Any) -> str:
+    message = getattr(query, "message", None)
+    chat = getattr(message, "chat", None)
+    chat_id = getattr(chat, "id", None)
+    message_id = getattr(message, "message_id", None)
+    if chat_id is None or message_id is None:
+        return ""
+    return f"{chat_id}:{message_id}"
 
 
 def _remaining_keyboard_rows(
